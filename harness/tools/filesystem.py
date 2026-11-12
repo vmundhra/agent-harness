@@ -20,6 +20,14 @@ def _resolve_path(path: str) -> Path:
     hard constraint that prevents the agent from reading or modifying
     anything outside its sandbox.
     """
+
+    # Prevents accidental clobbering by treating memory as a regular file.
+    if path == "AGENTS.md" or path.endswith("/AGENTS.md"):
+        return (
+            "[write] AGENTS.md is memory-managed. Use the `remember` tool "
+            "with a category and entry instead of write()."
+        )
+
     # Step 1: join the user-supplied path against the workspace, then canonicalize.
     # Canonicalization expands `..` segments — without it, `../../../etc/passwd`
     # would slip past the check below.
