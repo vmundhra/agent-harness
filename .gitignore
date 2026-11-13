@@ -10,8 +10,9 @@ __pycache__/
 .idea/
 .DS_Store
 
-# Others
+# Others. agent-harness specific
 workspace/
+.rag_index
 
 # Environments
 .env
