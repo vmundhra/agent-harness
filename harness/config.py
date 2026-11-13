@@ -78,3 +78,12 @@ SANDBOX_STARTUP_TIMEOUT: int = 30
 # Prefix for container names. Used to identify our containers when
 # cleaning up orphans from previous sessions on startup.
 SANDBOX_CONTAINER_PREFIX: str = "agent-harness-"
+
+
+# -- Web search -- 
+# Default number of search results to return per query. The model can
+# override this via the max_results argument on the web_search tool.
+# Five is a middle ground — enough context to be useful, not so many
+# that the response bloats.
+TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY")
+WEB_SEARCH_MAX_RESULTS: int = 5

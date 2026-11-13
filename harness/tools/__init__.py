@@ -5,6 +5,8 @@ from harness.tools.registry import registry
 # Add a new tool category? Add its import here.
 from harness.tools import filesystem  # noqa: F401 — imported for side effects
 
-from harness.tools import git  # noqa: F401
+from harness.tools import git  # noqa: F401 — imported for side effects
 
-from harness.tools import bash  # noqa: F401
+from harness.tools import bash  # noqa: F401 — imported for side effects
+
+from harness.tools import web_search    # noqa: F401 — imported for side effects
