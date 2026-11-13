@@ -13,6 +13,7 @@ __pycache__/
 # Others. agent-harness specific
 workspace/
 .rag_index
+.harness/
 
 # Environments
 .env

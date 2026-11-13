@@ -3,7 +3,7 @@ from pathlib import Path
 from openai import OpenAI
 
 from harness.tools.registry import registry
-from harness.config import INFERENCE_MODEL, INFERENCE_API_KEY, INFERENCE_BASE_URL, STEP_BUDGET
+from harness.config import INFERENCE_MODEL, INFERENCE_API_KEY, INFERENCE_BASE_URL, STEP_BUDGET, COMPACTION_THRESHOLD, COMPACTION_KEEP_RECENT
 from harness.sandbox import Sandbox
 from harness.tools.bash import set_sandbox
 from harness.memory import ( 
@@ -11,6 +11,8 @@ from harness.memory import (
     save_agents_md,
     validate_agents_md_structure,
 )
+from harness.context import Compactor
+
 
 # Initialize the OpenAI client with the API key and base URL from config.
 client = OpenAI(api_key=INFERENCE_API_KEY, base_url=INFERENCE_BASE_URL)
@@ -96,6 +98,28 @@ def _consolidate_memory(messages: list, client) -> None:
         print(f"Memory consolidation failed: {e}. Keeping current AGENTS.md.")
 
 
+def _run_compaction(compactor: Compactor, messages: list[dict]) -> None:
+       before = compactor.get_last_token_count()
+       new_messages = compactor.compact(messages)
+
+       if new_messages is None:
+           # No-op: not enough conversation to compact.
+           print(
+               "[Compaction skipped: not enough older history to summarize "
+               f"(need more than {COMPACTION_KEEP_RECENT} user turns).]"
+           )
+           return
+
+       messages.clear()
+       messages.extend(new_messages)
+
+       approximate_after = compactor.approximate_char_count(messages)
+       print(
+           f"[Context compacted at {before:,} tokens → ~{approximate_after:,} tokens. "
+           f"Full history: .harness/context_log.jsonl]"
+       )
+
+
 def run():
     """Run the agent's conversation loop until the user quits."""
 
@@ -105,6 +129,10 @@ def run():
     sandbox = Sandbox()
     sandbox.start()
     set_sandbox(sandbox)
+
+    # Create the Compactor once per session. Its state (last-seen token 
+    # count) needs to persist across turns, so it lives outside the loop.
+    compactor = Compactor(client) 
 
     try:
         # Load AGENTS.md and assemble the initial message list.       
@@ -119,9 +147,23 @@ def run():
             {"role": "system", "content": agents_md}
         ]
 
-        print("Agent ready. Type 'quit' or 'exit' to leave.\n")
+        print("Agent ready. Type 'quit' or 'exit' to leave. Type /compact to force compaction.\n")
 
         while True:
+
+            # Compaction check runs BEFORE reading user input. If the
+            # previous turn crossed the threshold, compact now so the
+            # next turn starts against a lean context.
+            if compactor.should_compact():
+                _run_compaction(compactor, messages)
+
+            # Display current context size before the prompt so students 
+            # can see themselves approaching the compaction threshold.
+            # Suppressed on the first turn (no model call has happened
+            # yet, so the count is zero and meaningless).
+            current_tokens = compactor.get_last_token_count()
+            if current_tokens > 0:
+                print(f"[Context: {current_tokens:,} / {COMPACTION_THRESHOLD:,} tokens]")
 
             # 1. Get input from the user
             user_input = input("you > ").strip()
@@ -134,6 +176,14 @@ def run():
 
             # Skip empty lines without making a model call
             if not user_input:
+                continue
+
+            if user_input == "/compact":                              
+                # Manual compaction — same code path as automatic, but
+                # doesn't wait for the threshold. Useful for demonstrations
+                # and for the user to trigger cleanup when they know the
+                # context is heavy.
+                _run_compaction(compactor, messages)
                 continue
 
             # 3. Append the user's message to the history
@@ -150,6 +200,9 @@ def run():
                 )
                 message = response.choices[0].message
 
+                if response.usage:  
+                    compactor.record_token_usage(response.usage.prompt_tokens)
+
                 if not message.tool_calls:
                     break
 
@@ -161,6 +214,10 @@ def run():
                         tools=registry.get_schemas(),
                         tool_choice="none",
                     )
+
+                    if response.usage:  
+                        compactor.record_token_usage(response.usage.prompt_tokens)
+
                     message = response.choices[0].message
                     break
 
