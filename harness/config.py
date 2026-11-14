@@ -10,8 +10,21 @@ happens to use.
 
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
 load_dotenv()  # load .env file if present
+
+
+# -- Workspace --   
+# The workspace directory. All filesystem tools operate inside this;
+# the sandbox bind-mounts it; the offloader writes tool outputs into
+# a subdirectory (.tool_outputs/) under it.
+#
+# Defined here (not in filesystem.py) so other modules can import it
+# without pulling in the tool registry — avoids a circular import when
+# harness/context/offloader.py needs the workspace path.
+WORKSPACE: Path = Path("./workspace").resolve()
+WORKSPACE.mkdir(exist_ok=True)
 
 # -- Model configuration --
 # The chat completion model the harness calls. Any OpenAI-compatible
@@ -134,3 +147,25 @@ COMPACTION_THRESHOLD: int = 60_000
 # gets summarized. Small enough that summarization is meaningful,
 # large enough that in-flight work isn't lost.
 COMPACTION_KEEP_RECENT: int = 3
+
+
+# -- Tool call offloading -- 
+# Threshold above which a tool output gets offloaded to disk instead of
+# landing fully in context. Approximate — measured in characters at a
+# rough 4-chars-per-token conversion. Below this size, tool outputs pass
+# through unchanged; above it, only a head and tail remain in context
+# and the full output lands in workspace/.tool_outputs/.
+#
+# Fixed value across all tools for teaching. Production systems usually
+# tune per-tool: web_search returns are designed to be ~1-2k tokens
+# and a low threshold offloads all of them; bash outputs are more
+# variable and a lower threshold makes sense. Same code shape — just
+# a lookup table instead of one constant. To turn-off (tool) offloading entirely, set this to a very high value (e.g., 1M).
+OFFLOAD_THRESHOLD_TOKENS: int = 1_000
+
+# When an output IS offloaded, keep this many tokens at the start and
+# at the end. Head + tail captures the case where value lives at
+# either end (setup lines vs. summary lines). The middle is where
+# bulk log output usually sits — that's what we send to disk.
+OFFLOAD_HEAD_TOKENS: int = 300
+OFFLOAD_TAIL_TOKENS: int = 300
