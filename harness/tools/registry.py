@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 from pydantic import TypeAdapter
 import inspect
+from langsmith import traceable
 
 from harness.context.offloader import maybe_offload
 
@@ -67,6 +68,7 @@ class ToolRegistry:
             for t in self._tools.values()
         ]
 
+    @traceable(run_type="tool")
     def dispatch(self, name: str, arguments: dict[str, Any]) -> str:
         """Call the named tool with the given arguments. Returns its string output."""
         

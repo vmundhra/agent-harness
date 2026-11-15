@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from openai import OpenAI
+from langsmith.wrappers import wrap_openai
 
 from harness.tools.registry import registry
 from harness.config import (
@@ -39,7 +40,7 @@ from harness.ralph import (
 
 
 # Initialize the OpenAI client with the API key and base URL from config.
-client = OpenAI(api_key=INFERENCE_API_KEY, base_url=INFERENCE_BASE_URL)
+client = wrap_openai(OpenAI(api_key=INFERENCE_API_KEY, base_url=INFERENCE_BASE_URL))
 
 # The synthetic system message injected when the step budget is exceeded.
 # It tells the model why it's being asked to stop and what shape its
@@ -344,7 +345,20 @@ def run():
                 print(f"[Context: {current_tokens:,} / {COMPACTION_THRESHOLD:,} tokens]")
 
             # 1. Get input from the user
+            # Single-line  
             user_input = input("you > ").strip()
+
+            # Multi-line (uncomment to enable) — user types END on a new line to submit.
+            # print("you > (Type END on a new line to submit)")
+
+            # lines = []
+            # while True:
+            #     line = input()
+            #     if line.strip() == "END":
+            #       break
+            #     lines.append(line)
+
+            # user_input = "\n".join(lines).strip()
 
             # 2. Allow the user to leave cleanly
             if user_input in {"quit", "exit"}:
