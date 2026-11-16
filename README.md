@@ -19,8 +19,16 @@ A custom agent harness build from scratch
    pip install -r requirements.txt
 ```
 
-4. Copy `.env.example` to `.env` and fill in your OpenAI API key.
+4. Copy `.env.example` to `.env` and fill in your Inference API key, and other vars.
+
+5. Create a Docker image for the agent to run code inside a sandboxed execution environment
+
+```
+   docker build -f harness/sandbox/Dockerfile -t agent-harness:0.1
+```
 
 ## Running
 
-Coming soon
+```
+   python -m harness.agent
+```
